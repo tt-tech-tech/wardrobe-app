@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>👗 我的智能电子衣橱 & 搭配间</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f4f6f9;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { font-size: 20px; color: #333; margin-bottom: 5px; }
+        p { color: #666; font-size: 13px; margin-top: 0; text-align: center; }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 100%;
+            max-width: 450px;
+        }
+
+        /* 试衣间画布区域 */
+        .fitting-room {
+            background: #ffffff;
+            border-radius: 16px;
+            height: 380px;
+            position: relative;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border: 2px dashed #ddd;
+            overflow: hidden;
+            touch-action: none;
+        }
+        .fitting-title {
+            position: absolute;
+            top: 10px;
+            left: 15px;
+            font-size: 12px;
+            color: #999;
+            font-weight: bold;
+            pointer-events: none;
+        }
+
+        /* 垃圾桶删除区 */
+        .trash-bin {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            width: 45px;
+            height: 45px;
+            background: rgba(255, 71, 87, 0.1);
+            border: 2px dashed #ff4757;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            transition: all 0.2s;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .trash-bin.highlight {
+            background: #ff4757;
+            transform: scale(1.15);
+        }
+
+        /* 画布中的衣服元素 */
+        .canvas-item {
+            position: absolute;
+            cursor: grab;
+            user-select: none;
+            touch-action: none;
+            left: 0;
+            top: 0;
+            display: inline-block;
+        }
+        .canvas-item canvas {
+            display: block;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15));
+        }
+        .canvas-item:active { cursor: grabbing; }
+        
+        .canvas-item.selected {
+            outline: 2px dashed #ff6b6b;
+            outline-offset: 2px;
+        }
+
+        .resize-handle {
+            position: absolute;
+            right: -10px;
+            bottom: -10px;
+            width: 22px;
+            height: 22px;
+            background: #ff6b6b;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            cursor: nwse-resize;
+            display: none;
+            z-index: 999;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        .canvas-item.selected .resize-handle {
+            display: block;
+        }
+
+        /* 控制台面板 */
+        .edit-panel {
+            background: #fff;
+            border-radius: 16px;
+            padding: 12px 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            border: 1px solid #ff6b6b33;
+        }
+        .edit-panel-header {
+            font-size: 13px;
+            font-weight: bold;
+            color: #ff6b6b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .edit-btns {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+        }
+        .edit-btns button {
+            padding: 8px 2px;
+            font-size: 11px;
+            border-radius: 8px;
+            border: none;
+            background: #f4f6f9;
+            cursor: pointer;
+            font-weight: bold;
+            color: #333;
+        }
+        .edit-btns button:hover { background: #e4e6eb; }
+        .edit-btns button.active {
+            background: #ff6b6b;
+            color: white;
+        }
+        .btn-delete-item { background: #ffeaa7 !important; color: #d63031 !important; }
+
+        .brush-size-bar {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            color: #666;
+            background: #fff3ec;
+            padding: 6px 10px;
+            border-radius: 8px;
+        }
+        .brush-size-bar input[type="range"] {
+            flex: 1;
+            cursor: pointer;
+        }
+
+        /* 统一区块卡片样式 */
+        .wardrobe-section {
+            background: #fff;
+            border-radius: 16px;
+            padding: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            position: relative;
+            z-index: 20;
+        }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .section-header h3 { font-size: 15px; margin: 0; color: #444; }
+        
+        .upload-btn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .category-tabs {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+            white-space: nowrap;
+        }
+        .category-tabs::-webkit-scrollbar { display: none; }
+        
+        .tab-btn {
+            background: #f0f2f5;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            color: #333;
+            cursor: pointer;
+            font-weight: bold;
+            user-select: none;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            background: #ff6b6b !important;
+            color: white !important;
+            box-shadow: 0 2px 6px rgba(255, 107, 107, 0.4);
+        }
+
+        .wardrobe-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            max-height: 160px;
+            overflow-y: auto;
+        }
+        .wardrobe-item {
+            background: #f9f9f9;
+            border-radius: 10px;
+            padding: 5px;
+            text-align: center;
+            border: 1px solid #eee;
+            cursor: pointer;
+            position: relative;
+        }
+        .wardrobe-item img {
+            width: 100%;
+            height: 50px;
+            object-fit: contain;
+            pointer-events: none;
+        }
+        .wardrobe-item span {
+            font-size: 10px;
+            color: #666;
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .delete-tag {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            background: red;
+            color: white;
+            border-radius: 50%;
+            width: 14px;
+            height: 14px;
+            font-size: 10px;
+            line-height: 14px;
+            text-align: center;
+            z-index: 2;
+        }
+
+        .look-card-actions {
+            display: flex;
+            gap: 4px;
+            margin-top: 4px;
+        }
+        .look-card-actions button {
+            flex: 1;
+            font-size: 9px;
+            padding: 2px 0;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-load-look { background: #ff7675; color: white; }
+        .btn-export-look { background: #0984e3; color: white; }
+
+        .action-bar {
+            display: flex;
+            gap: 10px;
+        }
+        .action-bar button {
+            flex: 1;
+            padding: 10px;
+            border-radius: 10px;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-save { background: #2ed573; color: white; }
+        .btn-clear { background: #ff4757; color: white; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div style="text-align: center;">
+            <h1 style="display: flex; align-items: center; justify-content: center; gap: 5px;">
+                <span>👗</span> 电子衣橱 & 智能试衣间
+            </h1>
+            <p>点击【加载修改】覆盖更新源文件 | 避免文件重复错乱</p>
+        </div>
+
+        <!-- 试衣间画布区 -->
+        <div class="fitting-room" id="fittingRoom">
+            <span class="fitting-title">✨ 搭配画布区</span>
+            <div class="trash-bin" id="trashBin" title="拖到此处删除">🗑️</div>
+        </div>
+
+        <!-- 图片编辑区控制台 -->
+        <div class="edit-panel" id="editPanel">
+            <div class="edit-panel-header">
+                <span id="selectedItemName">🎨 当前选中：无</span>
+                <span style="font-size: 11px; color: #999;">图层/擦除控制台</span>
+            </div>
+            <div class="edit-btns">
+                <button type="button" onclick="bringToFront()">⬆️ 移到最前</button>
+                <button type="button" onclick="sendToBack()">⬇️ 移到最后</button>
+                <button type="button" id="eraserToggleBtn" onclick="toggleEraserMode()">🧽 涂抹擦除</button>
+                <button type="button" onclick="undoEraser()" style="background:#e17055; color:white;">↩️ 撤销</button>
+                <button type="button" class="btn-delete-item" onclick="removeActiveItem()">🗑️ 移除</button>
+            </div>
+            <div class="brush-size-bar" id="brushSizeBar">
+                <span>橡皮擦大小：<strong id="brushSizeVal">20</strong>%</span>
+                <input type="range" id="brushRange" min="1" max="100" value="20" oninput="updateEraserSize(this.value)">
+            </div>
+        </div>
+
+        <div class="action-bar">
+            <button type="button" class="btn-clear" onclick="clearCanvas()">清空画布</button>
+            <button type="button" class="btn-save" onclick="promptSaveLook()">保存这套穿搭 💾</button>
+        </div>
+
+        <!-- 1. 素材库区块 -->
+        <div class="wardrobe-section">
+            <div class="section-header">
+                <h3>📦 素材库</h3>
+                <input type="file" id="fileInput" accept="image/*" multiple style="display:none" onchange="handleUpload(event)">
+                <button type="button" class="upload-btn" onclick="document.getElementById('fileInput').click()">+ 批量上传衣物</button>
+            </div>
+
+            <div class="category-tabs" id="categoryTabs">
+                <button type="button" class="tab-btn active" onclick="switchCategory('all', this)">全部</button>
+                <button type="button" class="tab-btn" onclick="switchCategory('外套', this)">外套</button>
+                <button type="button" class="tab-btn" onclick="switchCategory('上衣', this)">上衣</button>
+                <button type="button" class="tab-btn" onclick="switchCategory('裤子', this)">裤子</button>
+                <button type="button" class="tab-btn" onclick="switchCategory('裙子', this)">裙子</button>
+                <button type="button" class="tab-btn" onclick="switchCategory('鞋子', this)">鞋子</button>
+                <button type="button" class="tab-btn" onclick="switchCategory('首饰', this)">首饰</button>
+                <button type="button" class="tab-btn" onclick="switchCategory('包包', this)">包包</button>
+            </div>
+
+            <div class="wardrobe-grid" id="wardrobeGrid"></div>
+        </div>
+
+        <!-- 2. “我的衣橱”区块 -->
+        <div class="wardrobe-section">
+            <div class="section-header">
+                <h3>👗 我的衣橱</h3>
+                <span style="font-size: 11px; color: #999;" id="savedCountText">共 0 套搭配</span>
+            </div>
+            <div class="wardrobe-grid" id="savedLooksGrid">
+                <div style="grid-column: span 4; text-align: center; color: #aaa; font-size: 12px; padding: 20px 0;">
+                    暂无保存的穿搭，快去上方搭配并点击保存吧！
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let wardrobe = [
+            { id: 1, name: "白T恤", category: "上衣", url: "https://img.icons8.com/color/96/t-shirt.png" },
+            { id: 2, name: "牛仔裤", category: "裤子", url: "https://img.icons8.com/color/96/jeans.png" }
+        ];
+
+        let savedLooks = [];
+        let currentCategory = 'all';
+        let currentEditingLookId = null; // 标记当前正在加载修改的搭配ID
+
+        const wardrobeGrid = document.getElementById("wardrobeGrid");
+        const savedLooksGrid = document.getElementById("savedLooksGrid");
+        const fittingRoom = document.getElementById("fittingRoom");
+        const trashBin = document.getElementById("trashBin");
+        const editPanel = document.getElementById("editPanel");
+        
+        let activeItem = null;
+        let zIndexCounter = 1;
+        let isEraserMode = false;
+        let eraserPercent = 20;
+
+        function switchCategory(cat, btn) {
+            currentCategory = cat;
+            document.querySelectorAll("#categoryTabs .tab-btn").forEach(b => b.classList.remove("active"));
+            if (btn) btn.classList.add("active");
+            renderWardrobe();
+        }
+
+        function renderWardrobe() {
+            wardrobeGrid.innerHTML = "";
+            let filtered = (currentCategory === 'all') ? wardrobe : wardrobe.filter(i => i.category === currentCategory);
+
+            if (filtered.length === 0) {
+                wardrobeGrid.innerHTML = `<div style="grid-column: span 4; text-align: center; color: #aaa; font-size: 12px; padding: 20px 0;">暂无此分类衣物，点击上方批量上传！</div>`;
+                return;
+            }
+
+            filtered.forEach(item => {
+                const div = document.createElement("div");
+                div.className = "wardrobe-item";
+                div.innerHTML = `
+                    <div class="delete-tag" onclick="deleteMaterial(event, ${item.id})">×</div>
+                    <img src="${item.url}" alt="${item.name}">
+                    <span>[${item.category}]</span>
+                `;
+                div.onclick = () => addToFittingRoom({ name: item.name, url: item.url, posX: 120, posY: 80, width: 120, zIndex: ++zIndexCounter });
+                wardrobeGrid.appendChild(div);
+            });
+        }
+
+        function renderSavedLooks() {
+            savedLooksGrid.innerHTML = "";
+            document.getElementById("savedCountText").innerText = `共 ${savedLooks.length} 套搭配`;
+
+            if (savedLooks.length === 0) {
+                savedLooksGrid.innerHTML = `<div style="grid-column: span 4; text-align: center; color: #aaa; font-size: 12px; padding: 20px 0;">暂无保存的穿搭，快去上方搭配并点击保存吧！</div>`;
+                return;
+            }
+
+            savedLooks.forEach(look => {
+                const div = document.createElement("div");
+                div.className = "wardrobe-item";
+                div.style.height = "auto";
+                div.innerHTML = `
+                    <div class="delete-tag" onclick="deleteLook(event, ${look.id})">×</div>
+                    <img src="${look.previewUrl}" alt="${look.name}" onclick="loadLookToCanvas(${look.id})" title="点击加载到画布修改">
+                    <span style="font-weight:bold; color:#ff6b6b; margin-top:2px;">${look.name}</span>
+                    <div class="look-card-actions">
+                        <button class="btn-load-look" onclick="loadLookToCanvas(${look.id})">加载修改</button>
+                        <button class="btn-export-look" onclick="exportLookImage('${look.previewUrl}', '${look.name}')">导出图片</button>
+                    </div>
+                `;
+                savedLooksGrid.appendChild(div);
+            });
+        }
+
+        function handleUpload(event) {
+            const files = Array.from(event.target.files);
+            if (!files || files.length === 0) return;
+            let autoCategory = (currentCategory === 'all') ? "上衣" : currentCategory;
+
+            files.forEach((file) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    wardrobe.push({
+                        id: Date.now() + Math.random(),
+                        name: file.name.split('.')[0].substring(0, 8),
+                        category: autoCategory,
+                        url: e.target.result
+                    });
+                    renderWardrobe();
+                };
+                reader.readAsDataURL(file);
+            });
+            event.target.value = "";
+        }
+
+        function deleteMaterial(event, id) {
+            event.stopPropagation();
+            wardrobe = wardrobe.filter(item => item.id !== id);
+            renderWardrobe();
+        }
+
+        function deleteLook(event, id) {
+            event.stopPropagation();
+            savedLooks = savedLooks.filter(l => l.id !== id);
+            if (currentEditingLookId === id) currentEditingLookId = null;
+            renderSavedLooks();
+        }
+
+        function addToFittingRoom(options) {
+            const el = document.createElement("div");
+            el.className = "canvas-item selected";
+            el.style.zIndex = options.zIndex || (++zIndexCounter);
+            el.dataset.name = options.name;
+
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            const handle = document.createElement("div");
+            handle.className = "resize-handle";
+
+            el.appendChild(canvas);
+            el.appendChild(handle);
+
+            let posX = options.posX !== undefined ? options.posX : 120;
+            let posY = options.posY !== undefined ? options.posY : 80;
+            let displayWidth = options.width || 120;
+            let displayHeight = 120;
+            let undoHistory = [];
+
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.src = options.url;
+            img.onload = function() {
+                const ratio = img.height / img.width;
+                displayHeight = displayWidth * ratio;
+
+                canvas.width = options.canvasWidth || img.width;
+                canvas.height = options.canvasHeight || img.height;
+                canvas.style.width = displayWidth + "px";
+                canvas.style.height = displayHeight + "px";
+
+                if (options.savedImageData) {
+                    try {
+                        ctx.putImageData(options.savedImageData, 0, 0);
+                    } catch(e) {
+                        ctx.drawImage(img, 0, 0);
+                    }
+                } else {
+                    ctx.drawImage(img, 0, 0);
+                }
+                saveState();
+            };
+
+            el.style.transform = `translate(${posX}px, ${posY}px)`;
+
+            function saveState() {
+                try {
+                    if (undoHistory.length > 15) undoHistory.shift();
+                    undoHistory.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+                } catch(e){}
+            }
+
+            el.undoAction = function() {
+                if (undoHistory.length > 1) {
+                    undoHistory.pop();
+                    let prevState = undoHistory[undoHistory.length - 1];
+                    try { ctx.putImageData(prevState, 0, 0); } catch(e){}
+                } else {
+                    alert("已经是最初状态啦！");
+                }
+            };
+
+            el.getSourceData = function() {
+                let imgData = null;
+                try {
+                    imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                } catch(e){}
+                return {
+                    name: options.name,
+                    url: options.url,
+                    posX: posX,
+                    posY: posY,
+                    width: displayWidth,
+                    zIndex: parseInt(el.style.zIndex || 1),
+                    canvasWidth: canvas.width,
+                    canvasHeight: canvas.height,
+                    savedImageData: imgData
+                };
+            };
+
+            const eraseAtPoint = function(clientX, clientY) {
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const x = (clientX - rect.left) * scaleX;
+                const y = (clientY - rect.top) * scaleY;
+
+                const radius = (Math.max(canvas.width, canvas.height) * (eraserPercent / 100)) / 2;
+
+                ctx.save();
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.beginPath();
+                ctx.arc(x, y, Math.max(5, radius), 0, Math.PI * 2, false);
+                ctx.fill();
+                ctx.restore();
+            };
+
+            handle.onmousedown = handle.ontouchstart = function(e) {
+                const startX = e.touches ? e.touches[0].clientX : e.clientX;
+                const startW = displayWidth;
+
+                const onResizeMove = function(e) {
+                    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                    const deltaX = clientX - startX;
+                    const ratio = displayHeight / displayWidth;
+                    displayWidth = Math.max(40, startW + deltaX);
+                    displayHeight = displayWidth * ratio;
+                    canvas.style.width = displayWidth + "px";
+                    canvas.style.height = displayHeight + "px";
+                };
+
+                const onResizeEnd = function() {
+                    document.removeEventListener('mousemove', onResizeMove);
+                    document.removeEventListener('mouseup', onResizeEnd);
+                    document.removeEventListener('touchmove', onResizeMove);
+                    document.removeEventListener('touchend', onResizeEnd);
+                };
+
+                document.addEventListener('mousemove', onResizeMove);
+                document.addEventListener('mouseup', onResizeEnd);
+                document.addEventListener('touchmove', onResizeMove, {passive: false});
+                document.addEventListener('touchend', onResizeEnd);
+
+                e.stopPropagation();
+                e.preventDefault();
+            };
+
+            el.onmousedown = el.ontouchstart = function(e) {
+                selectItem(el);
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+                if (isEraserMode) {
+                    let isPainting = true;
+                    eraseAtPoint(clientX, clientY);
+
+                    const onPaintMove = function(e) {
+                        if (!isPainting) return;
+                        const cx = e.touches ? e.touches[0].clientX : e.clientX;
+                        const cy = e.touches ? e.touches[0].clientY : e.clientY;
+                        eraseAtPoint(cx, cy);
+                    };
+
+                    const onPaintEnd = function() {
+                        if (isPainting) {
+                            isPainting = false;
+                            saveState();
+                        }
+                        document.removeEventListener('mousemove', onPaintMove);
+                        document.removeEventListener('mouseup', onPaintEnd);
+                        document.removeEventListener('touchmove', onPaintMove);
+                        document.removeEventListener('touchend', onPaintEnd);
+                    };
+
+                    document.addEventListener('mousemove', onPaintMove);
+                    document.addEventListener('mouseup', onPaintEnd);
+                    document.addEventListener('touchmove', onPaintMove, {passive: false});
+                    document.addEventListener('touchend', onPaintEnd);
+
+                } else {
+                    let startX = clientX - posX;
+                    let startY = clientY - posY;
+                    let isDragging = true;
+
+                    const onDragMove = function(e) {
+                        if (!isDragging) return;
+                        const cx = e.touches ? e.touches[0].clientX : e.clientX;
+                        const cy = e.touches ? e.touches[0].clientY : e.clientY;
+
+                        posX = cx - startX;
+                        posY = cy - startY;
+                        el.style.transform = `translate(${posX}px, ${posY}px)`;
+
+                        const binRect = trashBin.getBoundingClientRect();
+                        const elRect = el.getBoundingClientRect();
+                        if (elRect.right > binRect.left && elRect.bottom > binRect.top) {
+                            trashBin.classList.add("highlight");
+                        } else {
+                            trashBin.classList.remove("highlight");
+                        }
+                    };
+
+                    const onDragEnd = function() {
+                        if (isDragging) {
+                            isDragging = false;
+                            const binRect = trashBin.getBoundingClientRect();
+                            const elRect = el.getBoundingClientRect();
+                            if (elRect.right > binRect.left && elRect.bottom > binRect.top) {
+                                el.remove();
+                                editPanel.style.display = "none";
+                                activeItem = null;
+                            }
+                            trashBin.classList.remove("highlight");
+                        }
+                        document.removeEventListener('mousemove', onDragMove);
+                        document.removeEventListener('mouseup', onDragEnd);
+                        document.removeEventListener('touchmove', onDragMove);
+                        document.removeEventListener('touchend', onDragEnd);
+                    };
+
+                    document.addEventListener('mousemove', onDragMove);
+                    document.addEventListener('mouseup', onDragEnd);
+                    document.addEventListener('touchmove', onDragMove, {passive: false});
+                    document.addEventListener('touchend', onDragEnd);
+                }
+
+                e.stopPropagation();
+            };
+
+            fittingRoom.appendChild(el);
+            selectItem(el);
+        }
+
+        function selectItem(el) {
+            document.querySelectorAll(".canvas-item").forEach(i => i.classList.remove("selected"));
+            el.classList.add("selected");
+            activeItem = el;
+            editPanel.style.display = "flex";
+            document.getElementById("selectedItemName").innerText = `🎨 当前选中：${el.dataset.name}`;
+        }
+
+        function toggleEraserMode() {
+            isEraserMode = !isEraserMode;
+            const btn = document.getElementById("eraserToggleBtn");
+            const bar = document.getElementById("brushSizeBar");
+
+            if (isEraserMode) {
+                btn.classList.add("active");
+                btn.innerText = "✏️ 退出擦除";
+                bar.style.display = "flex";
+            } else {
+                btn.classList.remove("active");
+                btn.innerText = "🧽 涂抹擦除";
+                bar.style.display = "none";
+            }
+        }
+
+        function updateEraserSize(val) {
+            eraserPercent = val;
+            document.getElementById("brushSizeVal").innerText = val;
+        }
+
+        function undoEraser() {
+            if (activeItem && typeof activeItem.undoAction === 'function') {
+                activeItem.undoAction();
+            } else {
+                alert("请先选中一件画布中的衣物！");
+            }
+        }
+
+        function bringToFront() {
+            if (activeItem) activeItem.style.zIndex = ++zIndexCounter;
+        }
+
+        function sendToBack() {
+            if (activeItem) activeItem.style.zIndex = 1;
+        }
+
+        function removeActiveItem() {
+            if (activeItem) {
+                activeItem.remove();
+                editPanel.style.display = "none";
+                activeItem = null;
+            }
+        }
+
+        function clearCanvas() {
+            fittingRoom.querySelectorAll(".canvas-item").forEach(i => i.remove());
+            editPanel.style.display = "none";
+            activeItem = null;
+            currentEditingLookId = null; // 重置编辑状态，变回全新的创作模式
+            if (isEraserMode) toggleEraserMode();
+        }
+
+        // 保存/更新穿搭逻辑
+        function promptSaveLook() {
+            const items = fittingRoom.querySelectorAll(".canvas-item");
+            if (items.length === 0) {
+                alert("画布空空如也，先搭配几件衣服再保存吧！");
+                return;
+            }
+
+            let defaultName = `搭配 #${savedLooks.length + 1}`;
+            if (currentEditingLookId) {
+                const existing = savedLooks.find(l => l.id === currentEditingLookId);
+                if (existing) defaultName = existing.name;
+            }
+
+            let lookName = prompt("请确认这套穿搭的名字：", defaultName);
+            if (lookName === null) return;
+            if (!lookName.trim()) lookName = defaultName;
+
+            const exportCanvas = document.createElement("canvas");
+            exportCanvas.width = fittingRoom.clientWidth;
+            exportCanvas.height = fittingRoom.clientHeight;
+            const expCtx = exportCanvas.getContext("2d");
+
+            items.forEach(el => el.classList.remove("selected"));
+
+            let loadedCount = 0;
+            let itemsSourceData = [];
+
+            items.forEach(el => {
+                itemsSourceData.push(el.getSourceData());
+                const innerCanvas = el.querySelector("canvas");
+                const transform = el.style.transform;
+                const matches = transform.match(/translate\(([^p]+)px,\s*([^p]+)px\)/);
+                let x = matches ? parseFloat(matches[1]) : 120;
+                let y = matches ? parseFloat(matches[2]) : 80;
+
+                const img = new Image();
+                img.src = innerCanvas.toDataURL();
+                img.onload = function() {
+                    expCtx.drawImage(img, x, y, innerCanvas.clientWidth, innerCanvas.clientHeight);
+                    loadedCount++;
+                    if (loadedCount === items.length) {
+                        finishSaving(lookName.trim(), exportCanvas.toDataURL(), itemsSourceData);
+                    }
+                }
+            });
+        }
+
+        function finishSaving(name, previewUrl, itemsSourceData) {
+            if (currentEditingLookId) {
+                // 覆盖更新源文件模式
+                const index = savedLooks.findIndex(l => l.id === currentEditingLookId);
+                if (index !== -1) {
+                    savedLooks[index].name = name;
+                    savedLooks[index].previewUrl = previewUrl;
+                    savedLooks[index].items = itemsSourceData;
+                    alert(`✅ 已成功覆盖更新源穿搭【${name}】！`);
+                }
+            } else {
+                // 新建模式
+                const newLook = {
+                    id: Date.now(),
+                    name: name,
+                    previewUrl: previewUrl,
+                    items: itemsSourceData
+                };
+                savedLooks.push(newLook);
+                currentEditingLookId = newLook.id; // 保存完后自动锁定当前源文件
+                alert(`📸 穿搭【${name}】新建成功！已存入下方【我的衣橱】。`);
+            }
+            renderSavedLooks();
+        }
+
+        // 精准加载源文件函数（修正了 === 匹配）
+        function loadLookToCanvas(id) {
+            const look = savedLooks.find(l => l.id === id); // 精准查找当前点击的 ID
+            if (!look) return;
+
+            // 清空当前画布
+            fittingRoom.querySelectorAll(".canvas-item").forEach(i => i.remove());
+            editPanel.style.display = "none";
+            activeItem = null;
+
+            // 标记当前正在编辑此 ID
+            currentEditingLookId = id;
+
+            // 还原所有源文件元素
+            look.items.forEach(itemData => {
+                addToFittingRoom({
+                    name: itemData.name,
+                    url: itemData.url,
+                    posX: itemData.posX,
+                    posY: itemData.posY,
+                    width: itemData.width,
+                    zIndex: itemData.zIndex,
+                    canvasWidth: itemData.canvasWidth,
+                    canvasHeight: itemData.canvasHeight,
+                    savedImageData: itemData.savedImageData
+                });
+            });
+
+            alert(`✨ 已为您准确加载【${look.name}】的源文件，现在修改后点击保存将自动覆盖原文件！`);
+        }
+
+        function exportLookImage(previewUrl, lookName) {
+            const link = document.createElement("a");
+            link.href = previewUrl;
+            link.download = `${lookName}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        renderWardrobe();
+        renderSavedLooks();
+    </script>
+</body>
+</html>
